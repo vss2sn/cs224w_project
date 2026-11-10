@@ -16,10 +16,10 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from cn.baselines import newest_first_scores, random_scores
-from cn.config import CUTOFF_H, DATA_DIR, HOLDOUT_START, MILESTONE_DIR, SNAPSHOT, WINDOW_END, WINDOW_START
-from cn.labels import DROPPED, NEGATIVE, POSITIVE, RETURNED, UNRESOLVED
-from cn.metrics import POOL_FRACTIONS, code_provenance, evaluate_scores, note_tie_break, outcome_targets
+from community_notes_early_graph_triage.baselines import newest_first_scores, random_scores
+from community_notes_early_graph_triage.config import CUTOFF_H, DATA_DIR, HOLDOUT_START, MILESTONE_DIR, SNAPSHOT, WINDOW_END, WINDOW_START
+from community_notes_early_graph_triage.labels import DROPPED, NEGATIVE, POSITIVE, RETURNED, UNRESOLVED
+from community_notes_early_graph_triage.metrics import POOL_FRACTIONS, code_provenance, evaluate_scores, note_tie_break, outcome_targets
 
 OUT_PATH = MILESTONE_DIR / "baseline_metrics.json"
 RANDOM_SEEDS = range(20)

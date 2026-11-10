@@ -21,10 +21,10 @@ from torch import nn
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from cn.config import ADAM_LR, DATA_DIR, DEV_START, HOLDOUT_START, RELATIONS, SEED
-from cn.graph import filter_edges_to_notes, forward_degrees
-from cn.labels import NEGATIVE, POSITIVE
-from cn.metrics import (
+from community_notes_early_graph_triage.config import ADAM_LR, DATA_DIR, DEV_START, HOLDOUT_START, RELATIONS, SEED
+from community_notes_early_graph_triage.graph import filter_edges_to_notes, forward_degrees
+from community_notes_early_graph_triage.labels import NEGATIVE, POSITIVE
+from community_notes_early_graph_triage.metrics import (
     SCORER_STATUS,
     align_scores,
     code_provenance,
@@ -85,15 +85,24 @@ def _edge_count(data) -> int:
     return total
 
 
-def _view_for_notes(data, note_mask: torch.Tensor, fit_degree: torch.Tensor):
+def _view_for_notes(data, note_mask: torch.Tensor, fit_degree: torch.Tensor, loss_degree: torch.Tensor):
     view = filter_edges_to_notes(data, note_mask)
     _, note_degree = forward_degrees(view)
     view["rater"].fit_degree = fit_degree
+    view["rater"].loss_degree = loss_degree
     view["note"].degree = note_degree
     return view
 
 
-def _mean_bce(model: nn.Module, data, rows: torch.Tensor, label_of: torch.Tensor, fit_degree: torch.Tensor, device) -> float:
+def _mean_bce(
+    model: nn.Module,
+    data,
+    rows: torch.Tensor,
+    label_of: torch.Tensor,
+    fit_degree: torch.Tensor,
+    loss_degree: torch.Tensor,
+    device,
+) -> float:
     """Mean binary cross-entropy on `rows`. No step uses the torch RNG."""
     was_training = model.training
     model.eval()
@@ -104,7 +113,7 @@ def _mean_bce(model: nn.Module, data, rows: torch.Tensor, label_of: torch.Tensor
             chosen = rows[start : start + NOTE_BATCH]
             mask = torch.zeros(data["note"].num_nodes, dtype=torch.bool)
             mask[chosen.detach().cpu()] = True
-            view = _view_for_notes(data, mask, fit_degree).to(device)
+            view = _view_for_notes(data, mask, fit_degree, loss_degree).to(device)
             probabilities = model(view)
             loss = torch.nn.functional.binary_cross_entropy(
                 probabilities[chosen].clamp(1e-6, 1 - 1e-6), label_of[chosen]
@@ -160,7 +169,6 @@ def run_training(
     degree_view = filter_edges_to_notes(data, degree_mask)
     fit_degree, _ = forward_degrees(degree_view)
     use_batches = _edge_count(degree_view) > EDGE_BATCH_LIMIT
-    train_view = None if use_batches else _view_for_notes(data, degree_mask, fit_degree).to(device)
     del degree_view
     if use_dev_split:
         rows, labels = loss_tensors(pool, note_ids, created_before_ms=dev_ms)
@@ -168,6 +176,10 @@ def run_training(
     else:
         rows, labels = loss_tensors(pool, note_ids)
         val_rows, val_labels = None, None
+    loss_note_mask = torch.zeros(data["note"].num_nodes, dtype=torch.bool)
+    loss_note_mask[rows] = True
+    loss_degree, _ = forward_degrees(filter_edges_to_notes(data, loss_note_mask))
+    train_view = None if use_batches else _view_for_notes(data, degree_mask, fit_degree, loss_degree).to(device)
     rows = rows.to(device)
     label_of = torch.full((data["note"].num_nodes,), -1.0, device=device)
     label_of[rows] = labels.to(device)
@@ -193,7 +205,7 @@ def run_training(
             chosen = rows[torch.randperm(rows.shape[0], device=device)[:NOTE_BATCH]]
             mask = torch.zeros(data["note"].num_nodes, dtype=torch.bool, device=device)
             mask[chosen] = True
-            view = _view_for_notes(data, mask.cpu(), fit_degree).to(device)
+            view = _view_for_notes(data, mask.cpu(), fit_degree, loss_degree).to(device)
             loss_rows = chosen
         try:
             probabilities = model(view)
@@ -221,7 +233,7 @@ def run_training(
             print(f"loss flattened at step {step}")
             break
         if use_dev_split and (step % 20 == 0 or step == steps - 1):
-            dev_loss = _mean_bce(model, data, val_rows, val_label_of, fit_degree, device)
+            dev_loss = _mean_bce(model, data, val_rows, val_label_of, fit_degree, loss_degree, device)
             dev_loss_history.append({"step": step, "loss": dev_loss})
             print(f"dev step {step} loss {dev_loss:.4f}")
             improved = best_dev_loss is None or dev_loss < best_dev_loss - DEV_MIN_DELTA
@@ -239,7 +251,7 @@ def run_training(
         model.load_state_dict(best_state)
     model.eval()
     holdout_notes = ~train_mask
-    eval_view = _view_for_notes(data, holdout_notes, fit_degree).to(device)
+    eval_view = _view_for_notes(data, holdout_notes, fit_degree, loss_degree).to(device)
     with torch.no_grad():
         probabilities = model(eval_view).detach().cpu().numpy()
     holdout = pool.loc[pool["split"] == "holdout"].reset_index(drop=True)

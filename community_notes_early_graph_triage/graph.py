@@ -19,14 +19,14 @@ from torch_geometric.data import HeteroData
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from cn.config import (
+from community_notes_early_graph_triage.config import (
     DATA_DIR,
     HELPFULNESS_TO_RELATION,
     MILESTONE_DIR,
     RELATIONS,
 )
-from cn.early_features import aggregate_counts
-from cn.metrics import write_json
+from community_notes_early_graph_triage.early_features import aggregate_counts
+from community_notes_early_graph_triage.metrics import write_json
 
 
 def _store(data: HeteroData, edge_type, src: np.ndarray, dst: np.ndarray, rating_ms: np.ndarray) -> None:

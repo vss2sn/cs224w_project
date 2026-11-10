@@ -5,12 +5,12 @@ import pandas as pd
 import torch
 from torch_geometric.data import HeteroData
 
-from cn.config import HELPFUL, NOT_HELPFUL, SOMEWHAT_HELPFUL, TAG_COLUMNS
-from cn.encoder import TypedEncoder
-from cn.graph import build_graph, filter_edges_to_notes, forward_degrees
-from cn.metrics import align_scores
-from cn.mftrix_factorization import edge_pairs, fit_rater_terms, hold_out_edges, note_intercepts, predict
-from cn.stream_ratings import censor_joined, clock_gate_decision, dedup_later
+from community_notes_early_graph_triage.config import HELPFUL, NOT_HELPFUL, SOMEWHAT_HELPFUL, TAG_COLUMNS
+from community_notes_early_graph_triage.encoder import TypedEncoder
+from community_notes_early_graph_triage.graph import build_graph, filter_edges_to_notes, forward_degrees
+from community_notes_early_graph_triage.metrics import align_scores
+from community_notes_early_graph_triage.matrix_factorization import edge_pairs, fit_rater_terms, hold_out_edges, note_intercepts, predict
+from community_notes_early_graph_triage.stream_ratings import censor_joined, clock_gate_decision, dedup_later
 
 
 def _joined(rows):
@@ -18,7 +18,7 @@ def _joined(rows):
 
 
 def test_rating_millis_keeps_millisecond_timestamps():
-    from cn.graph import rating_millis
+    from community_notes_early_graph_triage.graph import rating_millis
 
     stamp = pd.Timestamp("2026-07-01 00:02:16.927+00:00")
     stamps = pd.Series([stamp]).astype("datetime64[ms, UTC]")
@@ -51,7 +51,7 @@ def test_string_ids_join_and_dedup_keeps_the_later_row():
             **{column: ["", ""] for column in TAG_COLUMNS},
         }
     )
-    from cn.stream_ratings import prepare_chunk
+    from community_notes_early_graph_triage.stream_ratings import prepare_chunk
 
     kept, _counts = prepare_chunk(ratings, window)
     kept = dedup_later(kept)
@@ -64,8 +64,8 @@ def test_string_ids_join_and_dedup_keeps_the_later_row():
 def test_malformed_rating_line_is_skipped_and_ids_stay_strings(tmp_path):
     import zipfile
 
-    from cn.config import TAG_COLUMNS
-    from cn.stream_ratings import read_rating_chunks
+    from community_notes_early_graph_triage.config import TAG_COLUMNS
+    from community_notes_early_graph_triage.stream_ratings import read_rating_chunks
 
     header = ["noteId", "raterParticipantId", "createdAtMillis", "helpfulnessLevel", *TAG_COLUMNS, "suggestion"]
     good = ["1234567890123456789", "42", "10", "HELPFUL", *([""] * len(TAG_COLUMNS)), "ok"]
@@ -145,11 +145,53 @@ def test_degree_zero_rater_does_not_make_a_nan_score():
     data["note"].num_nodes = 1
     data["rater"].num_nodes = 1
     data["rater"].fit_degree = torch.tensor([0.0])
+    data["rater"].loss_degree = torch.tensor([0.0])
     data["rater", "helpful", "note"].edge_index = torch.tensor([[0], [0]])
     data["rater", "somewhat_helpful", "note"].edge_index = torch.empty((2, 0), dtype=torch.long)
     data["rater", "not_helpful", "note"].edge_index = torch.empty((2, 0), dtype=torch.long)
     score = TypedEncoder(n_raters=1)(data)
     assert torch.isfinite(score).all()
+
+
+def test_untrained_rater_is_left_out_of_the_sum():
+    def graph(loss_degree: float) -> HeteroData:
+        data = HeteroData()
+        data["note"].x = torch.zeros((1, 2))
+        data["note"].degree = torch.tensor([1.0])
+        data["note"].num_nodes = 1
+        data["rater"].num_nodes = 1
+        data["rater"].fit_degree = torch.tensor([4.0])
+        data["rater"].loss_degree = torch.tensor([loss_degree])
+        data["rater", "helpful", "note"].edge_index = torch.tensor([[0], [0]])
+        data["rater", "somewhat_helpful", "note"].edge_index = torch.empty((2, 0), dtype=torch.long)
+        data["rater", "not_helpful", "note"].edge_index = torch.empty((2, 0), dtype=torch.long)
+        return data
+
+    model = TypedEncoder(n_raters=1)
+    with torch.no_grad():
+        model.rater.weight.fill_(3.0)
+    untrained = model(graph(0.0))
+    trained = model(graph(1.0))
+    assert torch.isfinite(untrained).all()
+    assert not torch.allclose(untrained, trained)
+
+
+def test_hours_count_only_a_helpful_first_exit():
+    from community_notes_early_graph_triage.labels import CRH, CRNH, assign_pool
+
+    hour = 60 * 60 * 1000
+    frame = pd.DataFrame(
+        {
+            "noteId": ["helpful-first", "not-helpful-first"],
+            "createdAtMillis": [0, 0],
+            "timestampMillisOfFirstNonNMRStatus": [20 * hour, 20 * hour],
+            "firstNonNMRStatus": [CRH, CRNH],
+            "currentStatus": [CRH, CRH],
+        }
+    )
+    pool = assign_pool(frame, 12).set_index("note_id")
+    assert pool.loc["helpful-first", "hours_to_resolution"] == 20
+    assert pd.isna(pool.loc["not-helpful-first", "hours_to_resolution"])
 
 
 def test_rank1_factors_recover_an_interaction():
@@ -170,7 +212,7 @@ def test_rank1_factors_recover_an_interaction():
 
 
 def test_non_404_stop_does_not_publish_a_partial_download():
-    from cn.stream_ratings import should_publish
+    from community_notes_early_graph_triage.stream_ratings import should_publish
 
     assert should_publish("proceed", 404)
     assert not should_publish("proceed", 500)
@@ -180,15 +222,15 @@ def test_non_404_stop_does_not_publish_a_partial_download():
 
 
 def test_queue_ids_are_the_pool():
-    from cn.graph import queue_ids
+    from community_notes_early_graph_triage.graph import queue_ids
 
     pool = pd.DataFrame({"note_id": ["only-the-queue"]})
     assert queue_ids(pool) == {"only-the-queue"}
 
 
 def test_dev_split_leaves_the_dev_interval_out_of_the_fit():
-    from cn.config import DEV_START, HOLDOUT_START
-    from cn.train import loss_tensors
+    from community_notes_early_graph_triage.config import DEV_START, HOLDOUT_START
+    from community_notes_early_graph_triage.train import loss_tensors
 
     dev_ms = int(pd.Timestamp(DEV_START, tz="UTC").value // 10**6)
     holdout_ms = int(pd.Timestamp(HOLDOUT_START, tz="UTC").value // 10**6)
@@ -208,9 +250,9 @@ def test_dev_split_leaves_the_dev_interval_out_of_the_fit():
 
 
 def test_initialize_repeats_from_the_seed():
-    from cn.encoder import TypedEncoder
-    from cn.sample_model import SampleModel
-    from cn.train import set_seed
+    from community_notes_early_graph_triage.encoder import TypedEncoder
+    from community_notes_early_graph_triage.sample_model import SampleModel
+    from community_notes_early_graph_triage.train import set_seed
 
     set_seed(0)
     first = SampleModel()
@@ -233,9 +275,9 @@ def test_initialize_repeats_from_the_seed():
 
 
 def test_run_training_scores_the_holdout(tmp_path):
-    from cn.config import HOLDOUT_START
-    from cn.sample_model import SampleModel
-    from cn.train import run_training, set_seed
+    from community_notes_early_graph_triage.config import HOLDOUT_START
+    from community_notes_early_graph_triage.sample_model import SampleModel
+    from community_notes_early_graph_triage.train import run_training, set_seed
 
     holdout_ms = int(pd.Timestamp(HOLDOUT_START, tz="UTC").value // 10**6)
     window = pd.DataFrame(

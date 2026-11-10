@@ -2,8 +2,8 @@
 
 import numpy as np
 
-from cn.baselines import mean_helpfulness_scores, newest_first_scores, rating_count_scores
-from cn.metrics import (
+from community_notes_early_graph_triage.baselines import mean_helpfulness_scores, newest_first_scores, rating_count_scores
+from community_notes_early_graph_triage.metrics import (
     average_precision,
     evaluate_by_stratum,
     evaluate_scores,
@@ -57,7 +57,7 @@ def test_stratum_k_is_a_fraction_of_the_bin():
 def test_note_tie_break_is_stable_and_not_creation_order():
     import pandas as pd
 
-    from cn.metrics import note_tie_break
+    from community_notes_early_graph_triage.metrics import note_tie_break
 
     ids = pd.Series([str(10**18 + i) for i in range(20)])
     first = note_tie_break(ids)
@@ -67,7 +67,7 @@ def test_note_tie_break_is_stable_and_not_creation_order():
 
 
 def test_tied_boundary_reports_the_range_not_the_file_order():
-    from cn.metrics import tie_capture
+    from community_notes_early_graph_triage.metrics import tie_capture
 
     y = np.array([1, 0, 0])
     scores = np.array([1.0, 1.0, 1.0])

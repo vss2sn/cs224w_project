@@ -15,9 +15,9 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from cn.baselines import mean_helpfulness_scores, rating_count_scores
-from cn.config import DATA_DIR, HELPFULNESS_CODE, MILESTONE_DIR
-from cn.metrics import (
+from community_notes_early_graph_triage.baselines import mean_helpfulness_scores, rating_count_scores
+from community_notes_early_graph_triage.config import DATA_DIR, HELPFULNESS_CODE, MILESTONE_DIR
+from community_notes_early_graph_triage.metrics import (
     SCORER_STATUS,
     code_provenance,
     evaluate_by_stratum,

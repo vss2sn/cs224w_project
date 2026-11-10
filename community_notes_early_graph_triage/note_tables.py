@@ -14,7 +14,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from cn.config import (
+from community_notes_early_graph_triage.config import (
     CUTOFF_H,
     DATA_DIR,
     HOLDOUT_START,
@@ -23,7 +23,7 @@ from cn.config import (
     WINDOW_END,
     WINDOW_START,
 )
-from cn.labels import assign_pool, load_status
+from community_notes_early_graph_triage.labels import assign_pool, load_status
 
 
 def _ms(date: str) -> int:

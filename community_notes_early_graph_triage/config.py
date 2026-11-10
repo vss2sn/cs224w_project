@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pyarrow as pa
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 SNAPSHOT = "2026-11-08"
 DATA_DIR = REPO_ROOT / "project" / "data" / "communitynotes" / SNAPSHOT
 MILESTONE_DIR = REPO_ROOT / "project" / "milestone"

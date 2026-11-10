@@ -18,7 +18,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from cn.config import (
+from community_notes_early_graph_triage.config import (
     DATA_DIR,
     HOLDOUT_START,
     LAMBDA_F,
@@ -30,8 +30,8 @@ from cn.config import (
     MILESTONE_DIR,
     SEED,
 )
-from cn.early_features import aggregate_counts, coded_helpfulness, score_frame
-from cn.metrics import (
+from community_notes_early_graph_triage.early_features import aggregate_counts, coded_helpfulness, score_frame
+from community_notes_early_graph_triage.metrics import (
     SCORER_STATUS,
     code_provenance,
     evaluate_by_stratum,

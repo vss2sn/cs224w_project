@@ -90,9 +90,9 @@ def load_status(path: Path) -> pd.DataFrame:
 def assign_pool(frame: pd.DataFrame, cutoff_h: int) -> pd.DataFrame:
     """Rows still Needs More Ratings at cutoff_h, with an outcome label.
 
-    ``hours_to_resolution`` is the hours from creation until the first non-NMR
-    status, and is set only for positives. For those notes the first status is
-    Helpful, so this is the time until the note was first shown as helpful.
+    ``hours_to_resolution`` is the hours from creation until the note was first
+    shown as helpful. It is set only for a positive whose first non-NMR status
+    is Helpful. A positive that left as not helpful first has a missing value.
     """
     cutoff_ms = frame["createdAtMillis"] + cutoff_h * HOUR_MS
     first_ts = frame["timestampMillisOfFirstNonNMRStatus"]
@@ -116,7 +116,7 @@ def assign_pool(frame: pd.DataFrame, cutoff_h: int) -> pd.DataFrame:
     outcome.loc[resolved & (current == NMR) & ~ever_crh] = RETURNED
 
     hours = (pool["timestampMillisOfFirstNonNMRStatus"] - pool["createdAtMillis"]) / HOUR_MS
-    hours = hours.where(outcome == POSITIVE)
+    hours = hours.where((outcome == POSITIVE) & (first_status == CRH))
 
     locked = pd.Series(False, index=pool.index)
     if "lockedStatus" in pool.columns:

@@ -24,7 +24,7 @@ import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from cn.config import (
+from community_notes_early_graph_triage.config import (
     CLOCK_COL,
     CLOCK_GATE_MIN,
     DATA_DIR,
@@ -319,8 +319,8 @@ def _millis(values: pd.Series) -> pd.Series:
 
 
 def main() -> None:
-    from cn.metrics import write_json
-    from cn.config import MILESTONE_DIR
+    from community_notes_early_graph_triage.metrics import write_json
+    from community_notes_early_graph_triage.config import MILESTONE_DIR
 
     window_path = DATA_DIR / "window_notes.parquet"
     if not window_path.exists():

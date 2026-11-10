@@ -15,7 +15,7 @@ from torch import nn
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from cn.config import MILESTONE_DIR, RELATIONS, SMOKE_STEPS
+from community_notes_early_graph_triage.config import MILESTONE_DIR, RELATIONS, SMOKE_STEPS
 
 
 class SampleModel(nn.Module):
@@ -54,10 +54,10 @@ def main() -> None:
 
     import pandas as pd
 
-    from cn.config import DATA_DIR, SEED
-    from cn.early_features import aggregate_counts, score_frame
-    from cn.metrics import rating_count_bin
-    from cn.train import run_training, set_seed
+    from community_notes_early_graph_triage.config import DATA_DIR, SEED
+    from community_notes_early_graph_triage.early_features import aggregate_counts, score_frame
+    from community_notes_early_graph_triage.metrics import rating_count_bin
+    from community_notes_early_graph_triage.train import run_training, set_seed
 
     flags = {"--until-flat", "--dev"}
     until_flat = "--until-flat" in sys.argv

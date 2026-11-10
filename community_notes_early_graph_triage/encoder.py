@@ -1,9 +1,10 @@
 """Typed bipartite encoder: one hop, one vector per training rater id.
 
 A note has no free id vector. Its vector is the normalized sum of raters who
-have already rated it. An unseen rater is left out of that sum. Dividing a
-zero vector by sqrt(0) is NaN, so a rater whose fit degree is 0 is
-omitted before the division. The unknown-rater row is not a trained parameter.
+have already rated it. A rater is left out of that sum unless they rated a
+note the loss uses. A random initial vector is not a trained rater. Dividing
+by sqrt(0) is NaN, so a rater whose fit degree is 0 is omitted before the
+division. The unknown-rater row is not a trained parameter.
 """
 
 from __future__ import annotations
@@ -16,14 +17,14 @@ from torch import nn
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from cn.config import ENCODER_HOPS, ENCODER_STEPS, ENCODER_WIDTH, MILESTONE_DIR, RELATIONS
+from community_notes_early_graph_triage.config import ENCODER_HOPS, ENCODER_STEPS, ENCODER_WIDTH, MILESTONE_DIR, RELATIONS
 
 
 class TypedEncoder(nn.Module):
     def __init__(self, n_raters: int, width: int = ENCODER_WIDTH, n_features: int = 2):
         super().__init__()
         if width != ENCODER_WIDTH or ENCODER_HOPS != 1:
-            raise ValueError("encoder width and hop count are fixed in cn.config and are not a search")
+            raise ValueError("encoder width and hop count are fixed in community_notes_early_graph_triage.config and are not a search")
         self.rater = nn.Embedding(n_raters, width)
         self.alpha = nn.Parameter(torch.empty(len(RELATIONS)))
         # One scale on the aggregated rater vectors. The layer-0 term in the
@@ -49,9 +50,14 @@ class TypedEncoder(nn.Module):
                 module.reset_parameters()
 
     def forward(self, data) -> torch.Tensor:
-        """One probability per note. Rater degree is `fit_degree`, not recomputed here."""
+        """One probability per note. Rater degree is `fit_degree`, not recomputed here.
+
+        ``loss_degree`` is the rater's count of ratings on loss notes. A rater
+        with none is left out, even if ``fit_degree`` is positive.
+        """
         features = data["note"].x
         fit_degree = data["rater"].fit_degree
+        loss_degree = data["rater"].loss_degree
         note_degree = data["note"].degree
         width = self.rater.embedding_dim
         aggregated = torch.zeros(features.shape[0], width, device=features.device, dtype=features.dtype)
@@ -63,7 +69,8 @@ class TypedEncoder(nn.Module):
             note_idx = edge_index[1]
             d_u = fit_degree[rater_idx]
             d_n = note_degree[note_idx]
-            keep = (d_u > 0) & (d_n > 0)
+            trained = loss_degree[rater_idx]
+            keep = (d_u > 0) & (d_n > 0) & (trained > 0)
             if not bool(keep.any()):
                 continue
             coef = self.alpha[index] / torch.sqrt(d_u[keep] * d_n[keep])
@@ -80,10 +87,10 @@ def main() -> None:
     import pandas as pd
     import torch as _torch
 
-    from cn.config import DATA_DIR, SEED
-    from cn.early_features import aggregate_counts, score_frame
-    from cn.metrics import rating_count_bin
-    from cn.train import run_training, set_seed
+    from community_notes_early_graph_triage.config import DATA_DIR, SEED
+    from community_notes_early_graph_triage.early_features import aggregate_counts, score_frame
+    from community_notes_early_graph_triage.metrics import rating_count_bin
+    from community_notes_early_graph_triage.train import run_training, set_seed
 
     use_dev_split = "--dev" in sys.argv
     step_args = [arg for arg in sys.argv[1:] if arg != "--dev"]

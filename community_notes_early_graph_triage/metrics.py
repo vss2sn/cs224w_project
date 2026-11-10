@@ -35,7 +35,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import average_precision_score
 
-from cn.labels import NEGATIVE, POSITIVE
+from community_notes_early_graph_triage.labels import NEGATIVE, POSITIVE
 
 POOL_FRACTIONS = (0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.10)
 
@@ -316,8 +316,8 @@ def evaluate_by_stratum(
 
 
 def code_provenance() -> dict:
-    """Git revision and a hash of project/cn, so a metric file names the code that wrote it."""
-    from cn.config import ADAM_LR, ENCODER_HOPS, ENCODER_STEPS, ENCODER_WIDTH, SEED
+    """Git revision and a hash of this package, so a metric file names the code that wrote it."""
+    from community_notes_early_graph_triage.config import ADAM_LR, ENCODER_HOPS, ENCODER_STEPS, ENCODER_WIDTH, SEED
 
     root = Path(__file__).resolve().parent
     digest = hashlib.sha256()
@@ -325,7 +325,7 @@ def code_provenance() -> dict:
         digest.update(path.name.encode())
         digest.update(b"\0")
         digest.update(path.read_bytes())
-    repo = root.parents[1]
+    repo = root.parent
     head = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True)
     return {
         "git_head": head.stdout.strip() if head.returncode == 0 else None,
